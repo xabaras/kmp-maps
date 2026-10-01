@@ -59,6 +59,8 @@ public actual fun Map(
     geoJsonLayers: List<GeoJsonLayer>,
     customMarkerContent: Map<String, @Composable (Marker) -> Unit>,
     webCustomMarkerContent: Map<String, (Marker) -> String>,
+    animateCameraPosition: Boolean,
+    cameraAnimationDurationMs: Int,
 ) {
     var mapLoaded by remember { mutableStateOf(false) }
     val locationPermissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -80,9 +82,14 @@ public actual fun Map(
             }
         }
 
-        LaunchedEffect(cameraPosition, mapLoaded) {
+        LaunchedEffect(cameraPosition, mapLoaded, animateCameraPosition, cameraAnimationDurationMs) {
             if (mapLoaded && cameraPosition != null) {
-                cameraPositionState.move(cameraPosition.toCameraUpdate())
+                val update = cameraPosition.toCameraUpdate()
+                if (animateCameraPosition) {
+                    cameraPositionState.animate(update, cameraAnimationDurationMs)
+                } else {
+                    cameraPositionState.move(update)
+                }
             }
         }
 

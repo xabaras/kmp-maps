@@ -7,6 +7,8 @@ import cocoapods.GoogleMaps.GMSMapView
 import cocoapods.GoogleMaps.GMSMutablePath
 import cocoapods.GoogleMaps.GMSPolygon
 import cocoapods.GoogleMaps.GMSPolyline
+import cocoapods.GoogleMaps.animateToCameraPosition
+import cocoapods.GoogleMaps.animateWithCameraUpdate
 import cocoapods.GoogleMaps.kGMSTypeHybrid
 import cocoapods.GoogleMaps.kGMSTypeNormal
 import cocoapods.GoogleMaps.kGMSTypeSatellite
@@ -45,6 +47,7 @@ import platform.Foundation.NSNumber
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.dataUsingEncoding
+import platform.QuartzCore.CATransaction
 import platform.UIKit.UIColor
 import platform.UIKit.UIUserInterfaceStyle
 
@@ -270,12 +273,18 @@ public fun UtilsGMSMapView.renderGeoJson(geoJson: String): GMUGeometryRenderer? 
  * the entire region. Otherwise, falls back to a direct [GMSCameraPosition].
  *
  * @param position The camera position to apply
+ * @param animated When `true`, animates the camera transition; when `false`, jumps instantly
+ * @param durationMs Animation duration in milliseconds when [animated] is `true`
  */
 @OptIn(ExperimentalForeignApi::class)
-public fun UtilsGMSMapView.setUpGMSCameraPosition(position: CameraPosition) {
+public fun UtilsGMSMapView.setUpGMSCameraPosition(
+    position: CameraPosition,
+    animated: Boolean = false,
+    durationMs: Int = 300,
+) {
     val bounds = position.bounds
     if (bounds != null) {
-        moveCamera(
+        val update =
             GMSCameraUpdate.fitBounds(
                 GMSCoordinateBounds(
                     CLLocationCoordinate2DMake(
@@ -289,9 +298,13 @@ public fun UtilsGMSMapView.setUpGMSCameraPosition(position: CameraPosition) {
                 ),
                 withPadding = 0.0,
             )
-        )
+        if (animated) {
+            animateCameraUpdate(update, durationMs)
+        } else {
+            moveCamera(update)
+        }
     } else {
-        setCamera(
+        val camera =
             GMSCameraPosition.cameraWithTarget(
                 target =
                     CLLocationCoordinate2DMake(
@@ -302,8 +315,23 @@ public fun UtilsGMSMapView.setUpGMSCameraPosition(position: CameraPosition) {
                 bearing = position.iosCameraPosition?.gmsBearing?.toDouble() ?: 0.0,
                 viewingAngle = position.iosCameraPosition?.gmsViewingAngle?.toDouble() ?: 0.0,
             )
-        )
+        if (animated) {
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(durationMs / 1000.0)
+            animateToCameraPosition(camera)
+            CATransaction.commit()
+        } else {
+            setCamera(camera)
+        }
     }
+}
+
+@OptIn(ExperimentalForeignApi::class)
+private fun UtilsGMSMapView.animateCameraUpdate(update: GMSCameraUpdate, durationMs: Int) {
+    CATransaction.begin()
+    CATransaction.setAnimationDuration(durationMs / 1000.0)
+    animateWithCameraUpdate(update)
+    CATransaction.commit()
 }
 
 /**
