@@ -12,6 +12,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -32,6 +33,8 @@ import com.google.maps.android.compose.clustering.Clustering
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.data.Layer
 import com.google.maps.android.data.geojson.GeoJsonLayer as GoogleGeoJsonLayer
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
 
 /** Android implementation of the Map composable using Google Maps. */
 @OptIn(ExperimentalPermissionsApi::class, MapsComposeExperimentalApi::class)
@@ -82,15 +85,20 @@ public actual fun Map(
             }
         }
 
-        LaunchedEffect(cameraPosition, mapLoaded, animateCameraPosition, cameraAnimationDurationMs) {
-            if (mapLoaded && cameraPosition != null) {
-                val update = cameraPosition.toCameraUpdate()
-                if (animateCameraPosition) {
-                    cameraPositionState.animate(update, cameraAnimationDurationMs)
-                } else {
-                    cameraPositionState.move(update)
+        // Use snapshotFlow so ephemeral one-frame cameraPosition pulses still complete animate().
+        // Keying LaunchedEffect on cameraPosition would cancel animate when the prop becomes null.
+        LaunchedEffect(mapLoaded, animateCameraPosition, cameraAnimationDurationMs) {
+            if (!mapLoaded) return@LaunchedEffect
+            snapshotFlow { cameraPosition }
+                .filterNotNull()
+                .collectLatest { position ->
+                    val update = position.toCameraUpdate()
+                    if (animateCameraPosition) {
+                        cameraPositionState.animate(update, cameraAnimationDurationMs)
+                    } else {
+                        cameraPositionState.move(update)
+                    }
                 }
-            }
         }
 
         GoogleMap(
