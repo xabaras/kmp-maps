@@ -13,6 +13,8 @@ import cocoapods.GoogleMaps.kGMSTypeHybrid
 import cocoapods.GoogleMaps.kGMSTypeNormal
 import cocoapods.GoogleMaps.kGMSTypeSatellite
 import cocoapods.GoogleMaps.kGMSTypeTerrain
+import cocoapods.GoogleMaps.GMSCameraPosition as MapsGMSCameraPosition
+import cocoapods.GoogleMaps.GMSCameraUpdate as MapsGMSCameraUpdate
 import cocoapods.Google_Maps_iOS_Utils.GMSCameraPosition
 import cocoapods.Google_Maps_iOS_Utils.GMSCameraUpdate
 import cocoapods.Google_Maps_iOS_Utils.GMSCoordinateBounds
@@ -318,7 +320,7 @@ public fun UtilsGMSMapView.setUpGMSCameraPosition(
         if (animated) {
             CATransaction.begin()
             CATransaction.setAnimationDuration(durationMs / 1000.0)
-            animateToCameraPosition(camera)
+            (this as GMSMapView).animateToCameraPosition(camera as MapsGMSCameraPosition)
             CATransaction.commit()
         } else {
             setCamera(camera)
@@ -330,7 +332,7 @@ public fun UtilsGMSMapView.setUpGMSCameraPosition(
 private fun UtilsGMSMapView.animateCameraUpdate(update: GMSCameraUpdate, durationMs: Int) {
     CATransaction.begin()
     CATransaction.setAnimationDuration(durationMs / 1000.0)
-    animateWithCameraUpdate(update)
+    (this as GMSMapView).animateWithCameraUpdate(update as MapsGMSCameraUpdate)
     CATransaction.commit()
 }
 

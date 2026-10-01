@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -33,8 +34,10 @@ import com.google.maps.android.compose.clustering.Clustering
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.data.Layer
 import com.google.maps.android.data.geojson.GeoJsonLayer as GoogleGeoJsonLayer
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.withContext
 
 /** Android implementation of the Map composable using Google Maps. */
 @OptIn(ExperimentalPermissionsApi::class, MapsComposeExperimentalApi::class)
@@ -85,16 +88,25 @@ public actual fun Map(
             }
         }
 
-        // Use snapshotFlow so ephemeral one-frame cameraPosition pulses still complete animate().
-        // Keying LaunchedEffect on cameraPosition would cancel animate when the prop becomes null.
-        LaunchedEffect(mapLoaded, animateCameraPosition, cameraAnimationDurationMs) {
+        // cameraPosition is a composable param — must use rememberUpdatedState so snapshotFlow
+        // does not permanently capture the value from when this LaunchedEffect first started
+        // (often null at mapLoaded), which would make all later programmatic moves no-ops.
+        val latestCameraPosition by rememberUpdatedState(cameraPosition)
+        val latestAnimate by rememberUpdatedState(animateCameraPosition)
+        val latestDurationMs by rememberUpdatedState(cameraAnimationDurationMs)
+
+        // filterNotNull: clearing cameraPosition to null must not cancel an in-flight animate().
+        // NonCancellable: one-frame pulses that tear down the collector still finish animate().
+        LaunchedEffect(mapLoaded) {
             if (!mapLoaded) return@LaunchedEffect
-            snapshotFlow { cameraPosition }
+            snapshotFlow { latestCameraPosition }
                 .filterNotNull()
                 .collectLatest { position ->
                     val update = position.toCameraUpdate()
-                    if (animateCameraPosition) {
-                        cameraPositionState.animate(update, cameraAnimationDurationMs)
+                    if (latestAnimate) {
+                        withContext(NonCancellable) {
+                            cameraPositionState.animate(update, latestDurationMs)
+                        }
                     } else {
                         cameraPositionState.move(update)
                     }
